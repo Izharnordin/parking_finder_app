@@ -7,7 +7,6 @@ void main() {
 
 class ParkingFinderApp extends StatelessWidget {
   const ParkingFinderApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
