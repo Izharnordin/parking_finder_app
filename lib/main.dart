@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'screens/home_page.dart';
 
 void main() {
   runApp(const ParkingFinderApp());
@@ -38,10 +37,13 @@ class HomePage extends StatelessWidget {
         title: const Text("Smart Outdoor Parking Finder"),
         centerTitle: true,
       ),
-      body: const Center(
-        child: Text(
-          "Welcome to Smart Parking Finder!",
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+      body: Container(
+        color: Colors.blue[50],
+        child: const Center(
+          child: Text(
+            "Welcome to Smart Parking Finder!",
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+          ),
         ),
       ),
     );
