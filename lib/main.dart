@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'screens/home_page.dart';
 
 void main() {
   runApp(const ParkingFinderApp());
@@ -12,7 +13,7 @@ class ParkingFinderApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Smart Outdoor Parking Finder',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 17, 19, 23)),
         useMaterial3: true,
       ),
       initialRoute: '/home',
@@ -23,29 +24,6 @@ class ParkingFinderApp extends StatelessWidget {
         '/list': (context) => const Placeholder(),
         '/settings': (context) => const Placeholder(),
       },
-    );
-  }
-}
-
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Smart Outdoor Parking Finder"),
-        centerTitle: true,
-      ),
-      body: Container(
-        color: Colors.blue[50],
-        child: const Center(
-          child: Text(
-            "Welcome to Smart Parking Finder!",
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blueAccent),
-          ),
-        ),
-      ),
     );
   }
 }
