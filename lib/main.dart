@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'screens/home_page.dart';
 import 'screens/map_page.dart';
+import 'screens/login_page.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const ParkingFinderApp());
@@ -17,8 +19,10 @@ class ParkingFinderApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 17, 19, 23)),
         useMaterial3: true,
       ),
-      initialRoute: '/home',
+      initialRoute: '/',
       routes: {
+        '/': (context) => const SplashScreen(),  // Default route
+        '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
         '/map': (context) => const MapPage(),
         // Future pages:
