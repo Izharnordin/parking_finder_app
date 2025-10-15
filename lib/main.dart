@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'screens/home_page.dart';
+import 'screens/map_page.dart';
 
 void main() {
   runApp(const ParkingFinderApp());
@@ -19,8 +20,8 @@ class ParkingFinderApp extends StatelessWidget {
       initialRoute: '/home',
       routes: {
         '/home': (context) => const HomePage(),
+        '/map': (context) => const MapPage(),
         // Future pages:
-        '/map': (context) => const Placeholder(), // temporary
         '/list': (context) => const Placeholder(),
         '/settings': (context) => const Placeholder(),
       },
