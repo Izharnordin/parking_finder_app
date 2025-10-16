@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -10,7 +11,35 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController emailController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+
   bool isPasswordVisible = false;
+  bool isLoading = false;
+
+  void loginUser() async {
+    setState(() => isLoading = true);
+    try {
+      await _auth.signInWithEmailAndPassword(
+        email: emailController.text.trim(),
+        password: passwordController.text.trim(),
+      );
+      Navigator.pushReplacementNamed(context, '/home');
+    } on FirebaseAuthException catch (e) {
+      String message = '';
+      if (e.code == 'user-not-found') {
+        message = 'No user found for that email.';
+      } else if (e.code == 'wrong-password') {
+        message = 'Wrong password provided.';
+      } else {
+        message = e.message ?? 'Login failed';
+      }
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,41 +51,28 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // App logo or icon
-              const Icon(
-                Icons.local_parking,
-                size: 100,
-                color: Colors.blueAccent,
-              ),
+              const Icon(Icons.local_parking, size: 100, color: Colors.blueAccent),
               const SizedBox(height: 16),
               const Text(
                 'Smart Outdoor Parking Finder',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 40),
 
-              // Email input
+              // Email Field
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
                   labelText: 'Email',
                   prefixIcon: const Icon(Icons.email),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 20),
 
-              // Password input
+              // Password Field
               TextField(
                 controller: passwordController,
                 obscureText: !isPasswordVisible,
@@ -64,69 +80,41 @@ class _LoginPageState extends State<LoginPage> {
                   labelText: 'Password',
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      isPasswordVisible
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        isPasswordVisible = !isPasswordVisible;
-                      });
-                    },
+                    icon: Icon(isPasswordVisible
+                        ? Icons.visibility_off
+                        : Icons.visibility),
+                    onPressed: () =>
+                        setState(() => isPasswordVisible = !isPasswordVisible),
                   ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
+                      borderRadius: BorderRadius.circular(12)),
                 ),
               ),
               const SizedBox(height: 30),
 
-              // Login button
+              // Login Button
               ElevatedButton(
-                onPressed: () {
-                  // Temporary navigation — later connect to Firebase
-                  Navigator.pushReplacementNamed(context, '/home');
-                },
+                onPressed: isLoading ? null : loginUser,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blueAccent,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                      borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text(
-                  'Login',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
+                child: isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Login'),
               ),
               const SizedBox(height: 15),
 
-              // Forgot password + Register (optional)
-              TextButton(
-                onPressed: () {},
-                child: const Text(
-                  'Forgot Password?',
-                  style: TextStyle(color: Colors.blueAccent),
-                ),
-              ),
-              const SizedBox(height: 10),
+              // Go to Sign Up
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Don’t have an account?'),
+                  const Text("Don’t have an account?"),
                   TextButton(
-                    onPressed: () {
-                      // Placeholder for future signup page
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Sign-up feature coming soon!'),
-                        ),
-                      );
-                    },
+                    onPressed: () => Navigator.pushNamed(context, '/signup'),
                     child: const Text(
                       'Sign Up',
                       style: TextStyle(color: Colors.blueAccent),
