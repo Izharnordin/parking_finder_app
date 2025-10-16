@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../widgets/parking_card.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
@@ -9,83 +9,40 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
-  bool showAvailableOnly = false; // Example toggle
+  late GoogleMapController mapController;
+
+  final LatLng _center = const LatLng(3.1390, 101.6869); // Kuala Lumpur
+
+  void _onMapCreated(GoogleMapController controller) {
+    mapController = controller;
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Find Nearby Parking Spots'),
+        title: const Text("Find Parking"),
         backgroundColor: Colors.blueAccent,
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.filter_alt),
-            tooltip: 'Filter available spots',
-            onPressed: () {
-              setState(() {
-                showAvailableOnly = !showAvailableOnly;
-              });
-            },
-          ),
-        ],
       ),
-
-      body: Column(
-        children: [
-          // Map Placeholder (replace with Google Maps or IoT map later)
-          Expanded(
-            flex: 2,
-            child: Container(
-              width: double.infinity,
-              color: const Color(0xFFDDEBFF),
-              child: const Center(
-                child: Text(
-                  '🗺️ Map Display Placeholder\n(Google Maps or IoT data view)',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 16,
-                  ),
-                ),
-              ),
-            ),
+      body: GoogleMap(
+        onMapCreated: _onMapCreated,
+        initialCameraPosition: CameraPosition(
+          target: _center,
+          zoom: 14.0,
+        ),
+        markers: {
+          const Marker(
+            markerId: MarkerId("spot1"),
+            position: LatLng(3.1392, 101.6865),
+            infoWindow: InfoWindow(title: "Parking Spot 1", snippet: "Available"),
           ),
-
-          // Parking list / info cards
-          Expanded(
-            flex: 1,
-            child: ListView(
-              padding: const EdgeInsets.all(12),
-              children: const [
-                ParkingCard(
-                  location: 'Block A - Outdoor Lot',
-                  distance: '120m away',
-                  availableSpots: 5,
-                ),
-                ParkingCard(
-                  location: 'Visitor Parking - North Zone',
-                  distance: '250m away',
-                  availableSpots: 2,
-                ),
-                ParkingCard(
-                  location: 'Main Entrance Parking',
-                  distance: '400m away',
-                  availableSpots: 0,
-                ),
-              ],
-            ),
+          const Marker(
+            markerId: MarkerId("spot2"),
+            position: LatLng(3.1385, 101.6872),
+            infoWindow: InfoWindow(title: "Parking Spot 2", snippet: "Occupied"),
           ),
-        ],
-      ),
-
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.pop(context);
         },
-        label: const Text('Back'),
-        icon: const Icon(Icons.arrow_back),
-        backgroundColor: Colors.blueAccent,
       ),
     );
   }
