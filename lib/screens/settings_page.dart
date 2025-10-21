@@ -1,21 +1,7 @@
 import 'package:flutter/material.dart';
 
-class SettingsPage extends StatefulWidget {
-  final bool isDarkMode;
-  final Function(bool) onThemeChanged;
-
-  const SettingsPage({
-    super.key,
-    required this.isDarkMode,
-    required this.onThemeChanged,
-  });
-
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  bool notificationsEnabled = true;
+class SettingsPage extends StatelessWidget {
+  const SettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -32,26 +18,18 @@ class _SettingsPageState extends State<SettingsPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
 
+          // Notifications toggle
           SwitchListTile(
             title: const Text('Enable Notifications'),
             subtitle: const Text('Receive parking updates and alerts'),
-            value: notificationsEnabled,
-            onChanged: (bool value) {
-              setState(() => notificationsEnabled = value);
-            },
+            value: true, // keep this as enabled for now
+            onChanged: (bool value) {},
             activeThumbColor: Colors.blueAccent,
           ),
 
-          SwitchListTile(
-            title: const Text('Dark Mode'),
-            subtitle: const Text('Switch app theme to dark mode'),
-            value: widget.isDarkMode,
-            onChanged: (bool value) {
-              widget.onThemeChanged(value);
-            },
-          activeThumbColor: Colors.blueAccent,
-          ),
+          // Removed Dark Mode toggle
 
+          // Navigate to Profile Page
           ListTile(
             leading: const Icon(Icons.person),
             title: const Text('Profile'),
@@ -59,6 +37,7 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: () => Navigator.pushNamed(context, '/profile'),
           ),
 
+          // Logout button
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.redAccent),
             title: const Text('Logout',

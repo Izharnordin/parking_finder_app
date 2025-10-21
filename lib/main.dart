@@ -24,28 +24,15 @@ void main() async {
   runApp(const ParkingFinderApp());
 }
 
-class ParkingFinderApp extends StatefulWidget {
+class ParkingFinderApp extends StatelessWidget {
   const ParkingFinderApp({super.key});
-
-  @override
-  State<ParkingFinderApp> createState() => _ParkingFinderAppState();
-}
-
-class _ParkingFinderAppState extends State<ParkingFinderApp> {
-  bool _isDarkMode = false;
-
-  void toggleTheme(bool value) {
-    setState(() {
-      _isDarkMode = value;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Smart Outdoor Parking Finder',
-      theme: _isDarkMode ? ThemeData.dark() : ThemeData.light(),
+      theme: ThemeData.light(),
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),
@@ -53,10 +40,7 @@ class _ParkingFinderAppState extends State<ParkingFinderApp> {
         '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
         '/map': (context) => const MapPage(),
-        '/settings': (context) => SettingsPage(
-              onThemeChanged: toggleTheme,
-              isDarkMode: _isDarkMode,
-            ),
+        '/settings': (context) => SettingsPage(),
         '/profile': (context) => const ProfilePage(),
       },
     );
