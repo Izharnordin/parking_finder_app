@@ -27,8 +27,6 @@ class SettingsPage extends StatelessWidget {
             activeThumbColor: Colors.blueAccent,
           ),
 
-          // Removed Dark Mode toggle
-
           // Navigate to Profile Page
           ListTile(
             leading: const Icon(Icons.person),
