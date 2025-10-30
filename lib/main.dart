@@ -7,6 +7,7 @@ import 'screens/map_page.dart';
 import 'screens/settings_page.dart';
 import 'screens/profile_page.dart';
 import 'screens/signup_page.dart';
+import 'screens/parking_list_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,6 +41,7 @@ class ParkingFinderApp extends StatelessWidget {
         '/login': (context) => const LoginPage(),
         '/home': (context) => const HomePage(),
         '/map': (context) => const MapPage(),
+        '/list': (context) => const ParkingListPage(), 
         '/settings': (context) => SettingsPage(),
         '/profile': (context) => const ProfilePage(),
       },
