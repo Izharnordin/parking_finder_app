@@ -10,6 +10,8 @@ class MapPage extends StatefulWidget {
   State<MapPage> createState() => _MapPageState();
 }
 
+enum SpotState { free, available, reserved, occupied, unknown }
+
 class _MapPageState extends State<MapPage> {
   GoogleMapController? _mapController;
 
@@ -20,8 +22,64 @@ class _MapPageState extends State<MapPage> {
   bool _didFitForThisBatch = false;
   bool _showAvailableOnly = false;
 
-  // If navigated from list with coords, we’ll pan here
+  // If navigated from list with coordinates, pan here
   LatLng? _focusPoint;
+
+  // ------------ Helpers ------------
+  SpotState _parseState(dynamic raw) {
+    final s = (raw ?? '').toString().toLowerCase().trim();
+    switch (s) {
+      case 'free':
+      case 'available':
+        return SpotState.free; 
+      case 'reserved':
+        return SpotState.reserved;
+      case 'occupied':
+        return SpotState.occupied;
+      default:
+        return SpotState.unknown;
+    }
+  }
+
+  bool _isFree(SpotState st) => st == SpotState.free || st == SpotState.available;
+
+  double _hueFor(SpotState st) {
+    switch (st) {
+      case SpotState.free:
+      case SpotState.available:
+        return BitmapDescriptor.hueGreen;
+      case SpotState.reserved:
+        return BitmapDescriptor.hueOrange;
+      case SpotState.occupied:
+        return BitmapDescriptor.hueRed;
+      case SpotState.unknown:
+        return BitmapDescriptor.hueAzure;
+    }
+  }
+
+  String _labelFor(SpotState st) {
+    switch (st) {
+      case SpotState.free:
+      case SpotState.available:
+        return 'Available';
+      case SpotState.reserved:
+        return 'Reserved';
+      case SpotState.occupied:
+        return 'Occupied';
+      case SpotState.unknown:
+        return 'Unknown';
+    }
+  }
+
+  String _ago(Timestamp? ts) {
+    if (ts == null) return '';
+    final dt = ts.toDate();
+    final d = DateTime.now().difference(dt);
+    if (d.inSeconds < 60) return '${d.inSeconds}s ago';
+    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+    if (d.inHours < 24) return '${d.inHours}h ago';
+    return '${d.inDays}d ago';
+  }
 
   @override
   void didChangeDependencies() {
@@ -58,24 +116,27 @@ class _MapPageState extends State<MapPage> {
 
     for (final d in docs) {
       final spotId = d.id; // use doc id as canonical spot id
-      final data = d.data() as Map<String, dynamic>;
+      final data = Map<String, dynamic>.from(d.data() as Map);
+
 
       final lat = (data['latitude'] as num?)?.toDouble();
       final lng = (data['longitude'] as num?)?.toDouble();
       if (lat == null || lng == null) continue;
 
-      final name = (data['name'] ?? spotId) as String;
-      final status = (data['status'] ?? 'Unknown') as String;
+      final name = (data['name'] ?? spotId).toString();
+      final st = _parseState(data['status']);
       final availableSpots = data['available_spots'];
+      final updatedAt = data['updated_at'] is Timestamp ? data['updated_at'] as Timestamp : null;
 
       final snippetBits = <String>[];
       if (availableSpots != null) snippetBits.add('$availableSpots spots');
-      if (status.isNotEmpty)      snippetBits.add(status);
+      final label = _labelFor(st);
+      if (label.isNotEmpty) snippetBits.add(label);
+      final ago = _ago(updatedAt);
+      if (ago.isNotEmpty) snippetBits.add('Updated $ago');
       final snippet = snippetBits.join(' • ');
 
-      final hue = status.toLowerCase() == 'available'
-          ? BitmapDescriptor.hueGreen
-          : BitmapDescriptor.hueRed;
+      final hue = _hueFor(st);
 
       markers.add(
         Marker(
@@ -91,11 +152,9 @@ class _MapPageState extends State<MapPage> {
               ),
               builder: (_) => _SpotSheet(
                 spotId: spotId,
-                name: name,
-                status: status,
-                availableSpots: availableSpots is num ? availableSpots : null,
-                lat: lat,
-                lng: lng,
+                initialName: name,
+                initialLat: lat,
+                initialLng: lng,
               ),
             );
           },
@@ -164,12 +223,10 @@ class _MapPageState extends State<MapPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
+          final allDocs = snapshot.data!.docs;
           final docs = _showAvailableOnly
-              ? snapshot.data!.docs.where((d) {
-                  final s = (d['status'] ?? '').toString().toLowerCase();
-                  return s == 'available';
-                }).toList()
-              : snapshot.data!.docs;
+              ? allDocs.where((d) => _isFree(_parseState((d.data() as Map<String, dynamic>)['status']))).toList()
+              : allDocs;
 
           final markers = _buildMarkers(docs);
 
@@ -194,6 +251,10 @@ class _MapPageState extends State<MapPage> {
             });
           }
 
+          // Top-right availability pill
+          final total = allDocs.length;
+          final availableCount = allDocs.where((d) => _isFree(_parseState((d.data() as Map<String, dynamic>)['status']))).length;
+
           return Stack(
             children: [
               GoogleMap(
@@ -205,6 +266,21 @@ class _MapPageState extends State<MapPage> {
                 markers: markers,
                 myLocationButtonEnabled: false,
                 zoomControlsEnabled: true,
+              ),
+              Positioned(
+                right: 16,
+                top: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    'Available: $availableCount / $total',
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
               Positioned(
                 right: 16,
@@ -222,20 +298,17 @@ class _MapPageState extends State<MapPage> {
   }
 }
 
-// ============= Bottom Sheet: Reserve / Cancel =============
+// ============= Bottom Sheet (now live-updating) =============
 class _SpotSheet extends StatefulWidget {
   final String spotId; // Firestore doc id of the spot
-  final String name, status;
-  final num? availableSpots;
-  final double lat, lng;
+  final String initialName;
+  final double initialLat, initialLng;
 
   const _SpotSheet({
     required this.spotId,
-    required this.name,
-    required this.status,
-    this.availableSpots,
-    required this.lat,
-    required this.lng,
+    required this.initialName,
+    required this.initialLat,
+    required this.initialLng,
   });
 
   @override
@@ -356,63 +429,118 @@ class _SpotSheetState extends State<_SpotSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isAvailable = widget.status.toLowerCase() == 'available';
+    final docRef = FirebaseFirestore.instance.collection('parking_spots').doc(widget.spotId);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return StreamBuilder<DocumentSnapshot>(
+      stream: docRef.snapshots(),
+      builder: (context, snap) {
+        final raw = snap.data?.data();
+        final data = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+        final name = (data['name'] ?? widget.initialName).toString();
+        final st = _parseState(data['status']);
+        final isAvailable = st == SpotState.free || st == SpotState.available;
+        final availableSpots = data['available_spots'];
+        final updatedAt = data['updated_at'] is Timestamp ? data['updated_at'] as Timestamp : null;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.local_parking,
-                color: isAvailable ? Colors.green : Colors.red,
+              Row(
+                children: [
+                  Icon(
+                    Icons.local_parking,
+                    color: isAvailable
+                        ? Colors.green
+                        : (st == SpotState.reserved ? Colors.orange : Colors.red),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  widget.name,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-              ),
+              const SizedBox(height: 6),
+              Text('Status: ${_labelFor(st)}'),
+              if (availableSpots != null) Text('Spots: $availableSpots'),
+              if (updatedAt != null) Text('Updated: ${_ago(updatedAt)}'),
+              const SizedBox(height: 20),
+
+              if (_isLoading)
+                const Center(child: CircularProgressIndicator())
+              else if (_activeReservationId != null)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.cancel),
+                  label: const Text('Cancel Reservation'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  onPressed: _cancelReservation,
+                )
+              else if (isAvailable)
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.bookmark_add),
+                  label: const Text('Reserve Spot'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueAccent,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 48),
+                  ),
+                  onPressed: _reserveSpot,
+                )
+              else
+                const Text('This spot is not available right now.'),
             ],
           ),
-          const SizedBox(height: 6),
-          Text('Status: ${isAvailable ? "Available" : widget.status}'),
-          if (widget.availableSpots != null)
-            Text('Spots: ${widget.availableSpots}'),
-          const SizedBox(height: 20),
-
-          if (_isLoading)
-            const Center(child: CircularProgressIndicator())
-          else if (_activeReservationId != null)
-            ElevatedButton.icon(
-              icon: const Icon(Icons.cancel),
-              label: const Text('Cancel Reservation'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              onPressed: _cancelReservation,
-            )
-          else if (isAvailable)
-            ElevatedButton.icon(
-              icon: const Icon(Icons.bookmark_add),
-              label: const Text('Reserve Spot'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blueAccent,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 48),
-              ),
-              onPressed: _reserveSpot,
-            )
-          else
-            const Text('This spot is not available right now.'),
-        ],
-      ),
+        );
+      },
     );
+  }
+
+  // Reuse helpers inside the sheet
+  SpotState _parseState(dynamic raw) {
+    final s = (raw ?? '').toString().toLowerCase().trim();
+    switch (s) {
+      case 'free':
+      case 'available':
+        return SpotState.free;
+      case 'reserved':
+        return SpotState.reserved;
+      case 'occupied':
+        return SpotState.occupied;
+      default:
+        return SpotState.unknown;
+    }
+  }
+
+  String _labelFor(SpotState st) {
+    switch (st) {
+      case SpotState.free:
+      case SpotState.available:
+        return 'Available';
+      case SpotState.reserved:
+        return 'Reserved';
+      case SpotState.occupied:
+        return 'Occupied';
+      case SpotState.unknown:
+        return 'Unknown';
+    }
+  }
+
+  String _ago(Timestamp? ts) {
+    if (ts == null) return '';
+    final dt = ts.toDate();
+    final d = DateTime.now().difference(dt);
+    if (d.inSeconds < 60) return '${d.inSeconds}s ago';
+    if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+    if (d.inHours < 24) return '${d.inHours}h ago';
+    return '${d.inDays}d ago';
   }
 }
