@@ -3,6 +3,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
+// Fallback labels if Firestore.name is missing
+const Map<String, String> spotLabels = {
+  'spot1': 'Main Hall',
+  'spot2': 'V2 Parking Area',
+  'spot3': 'Masjid An-Nur',
+};
+
 class MapPage extends StatefulWidget {
   const MapPage({super.key});
 
@@ -25,13 +32,17 @@ class _MapPageState extends State<MapPage> {
   // If navigated from list with coordinates, pan here
   LatLng? _focusPoint;
 
+  // Ensure we only fit after map is created
+  bool _mapReady = false;
+  Set<Marker>? _pendingMarkers;
+
   // ------------ Helpers ------------
   SpotState _parseState(dynamic raw) {
     final s = (raw ?? '').toString().toLowerCase().trim();
     switch (s) {
       case 'free':
       case 'available':
-        return SpotState.free; 
+        return SpotState.free;
       case 'reserved':
         return SpotState.reserved;
       case 'occupied':
@@ -98,6 +109,13 @@ class _MapPageState extends State<MapPage> {
 
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
+    _mapReady = true;
+    if (_pendingMarkers != null && _pendingMarkers!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _fitToMarkers(_pendingMarkers!),
+      );
+      _pendingMarkers = null;
+    }
   }
 
   Future<void> _moveToPoint(LatLng point) async {
@@ -118,12 +136,11 @@ class _MapPageState extends State<MapPage> {
       final spotId = d.id; // use doc id as canonical spot id
       final data = Map<String, dynamic>.from(d.data() as Map);
 
-
       final lat = (data['latitude'] as num?)?.toDouble();
       final lng = (data['longitude'] as num?)?.toDouble();
       if (lat == null || lng == null) continue;
 
-      final name = (data['name'] ?? spotId).toString();
+      final name = (data['name'] ?? spotLabels[spotId] ?? spotId).toString();
       final st = _parseState(data['status']);
       final availableSpots = data['available_spots'];
       final updatedAt = data['updated_at'] is Timestamp ? data['updated_at'] as Timestamp : null;
@@ -223,24 +240,38 @@ class _MapPageState extends State<MapPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final allDocs = snapshot.data!.docs;
+          // Keep only docs that have coordinates; optionally filter by availability
+          final allWithCoords = snapshot.data!.docs.where((d) {
+            final m = Map<String, dynamic>.from(d.data() as Map);
+            final lat = (m['latitude'] as num?)?.toDouble();
+            final lng = (m['longitude'] as num?)?.toDouble();
+            return lat != null && lng != null;
+          }).toList();
+
           final docs = _showAvailableOnly
-              ? allDocs.where((d) => _isFree(_parseState((d.data() as Map<String, dynamic>)['status']))).toList()
-              : allDocs;
+              ? allWithCoords.where((d) {
+                  final m = Map<String, dynamic>.from(d.data() as Map);
+                  return _isFree(_parseState(m['status']));
+                }).toList()
+              : allWithCoords;
 
           final markers = _buildMarkers(docs);
 
-          // Fit camera only when marker count changes
-          final count = markers.length;
-          if (count != _lastMarkerCount) {
-            _lastMarkerCount = count;
-            _didFitForThisBatch = false;
-          }
-          if (!_didFitForThisBatch && count > 0) {
-            _didFitForThisBatch = true;
-            WidgetsBinding.instance.addPostFrameCallback(
-              (_) => _fitToMarkers(markers),
-            );
+          // Fit logic: only after map is ready
+          if (!_mapReady) {
+            _pendingMarkers = markers;
+          } else {
+            final count = markers.length;
+            if (count != _lastMarkerCount) {
+              _lastMarkerCount = count;
+              _didFitForThisBatch = false;
+            }
+            if (!_didFitForThisBatch && count > 0) {
+              _didFitForThisBatch = true;
+              WidgetsBinding.instance.addPostFrameCallback(
+                (_) => _fitToMarkers(markers),
+              );
+            }
           }
 
           // If we received a focus point from list, prioritize panning there once
@@ -251,9 +282,12 @@ class _MapPageState extends State<MapPage> {
             });
           }
 
-          // Top-right availability pill
-          final total = allDocs.length;
-          final availableCount = allDocs.where((d) => _isFree(_parseState((d.data() as Map<String, dynamic>)['status']))).length;
+          // Availability pill (based on docs with coords)
+          final total = allWithCoords.length;
+          final availableCount = allWithCoords.where((d) {
+            final m = Map<String, dynamic>.from(d.data() as Map);
+            return _isFree(_parseState(m['status']));
+          }).length;
 
           return Stack(
             children: [
@@ -436,7 +470,7 @@ class _SpotSheetState extends State<_SpotSheet> {
       builder: (context, snap) {
         final raw = snap.data?.data();
         final data = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
-        final name = (data['name'] ?? widget.initialName).toString();
+        final name = (data['name'] ?? spotLabels[widget.spotId] ?? widget.initialName).toString();
         final st = _parseState(data['status']);
         final isAvailable = st == SpotState.free || st == SpotState.available;
         final availableSpots = data['available_spots'];

@@ -1,6 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+// Fallback labels if Firestore.name is missing
+const Map<String, String> spotLabels = {
+  'spot1': 'Main Hall',
+  'spot2': 'V2 Parking Area',
+  'spot3': 'Masjid An-Nur',
+};
+
 class ParkingListPage extends StatefulWidget {
   const ParkingListPage({super.key});
 
@@ -94,17 +101,30 @@ class _ParkingListPageState extends State<ParkingListPage> {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final allDocs = snapshot.data!.docs;
+          // Keep only docs that have coordinates (so tapping always pans the map)
+          final allWithCoords = snapshot.data!.docs.where((d) {
+            final m = Map<String, dynamic>.from(d.data() as Map);
+            final lat = (m['latitude'] as num?)?.toDouble();
+            final lng = (m['longitude'] as num?)?.toDouble();
+            return lat != null && lng != null;
+          }).toList();
+
           final docs = _showAvailableOnly
-              ? allDocs.where((d) => _isFree(_parseState((d.data() as Map<String, dynamic>)['status']))).toList()
-              : allDocs;
+              ? allWithCoords.where((d) {
+                  final m = Map<String, dynamic>.from(d.data() as Map);
+                  return _isFree(_parseState(m['status']));
+                }).toList()
+              : allWithCoords;
 
           if (docs.isEmpty) {
             return const Center(child: Text('No parking spots found.'));
           }
 
-          final total = allDocs.length;
-          final availableCount = allDocs.where((d) => _isFree(_parseState((d.data() as Map<String, dynamic>)['status']))).length;
+          final total = allWithCoords.length;
+          final availableCount = allWithCoords.where((d) {
+            final m = Map<String, dynamic>.from(d.data() as Map);
+            return _isFree(_parseState(m['status']));
+          }).length;
 
           return Column(
             children: [
@@ -123,8 +143,10 @@ class _ParkingListPageState extends State<ParkingListPage> {
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, i) {
+                    final id   = docs[i].id;
                     final data = Map<String, dynamic>.from(docs[i].data() as Map);
-                    final name = (data['name'] ?? 'Unnamed Spot').toString();
+
+                    final name = (data['name'] ?? spotLabels[id] ?? id).toString();
                     final st = _parseState(data['status']);
                     final availableSpots = data['available_spots'];
                     final updatedAt = data['updated_at'] is Timestamp ? data['updated_at'] as Timestamp : null;
@@ -143,6 +165,7 @@ class _ParkingListPageState extends State<ParkingListPage> {
                       subtitle: Text(chips),
                       trailing: const Icon(Icons.map),
                       onTap: () {
+                        // By construction, lat/lng exist (we filtered above)
                         if (lat != null && lng != null) {
                           Navigator.pushNamed(
                             context,
