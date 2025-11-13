@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import '../widgets/google_button.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,7 +15,6 @@ class _LoginPageState extends State<LoginPage> {
   bool isPasswordVisible = false;
   bool isLoading = false;
   bool isSendingReset = false;
-  bool isGoogleLoading = false;
 
   void _snack(String m) {
     if (!mounted) return;
@@ -48,39 +44,6 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // ------- Google Sign-in -------
-  Future<void> signInWithGoogle() async {
-    try {
-      setState(() => isGoogleLoading = true);
-      if (kIsWeb) {
-        final provider = GoogleAuthProvider()..addScope('email');
-        await _auth.signInWithPopup(provider); // use signInWithRedirect if popups blocked
-      } else {
-        final acct = await GoogleSignIn().signIn();
-        if (acct == null) return; // user cancelled
-        final auth = await acct.authentication;
-        final cred = GoogleAuthProvider.credential(
-          accessToken: auth.accessToken,
-          idToken: auth.idToken,
-        );
-        await _auth.signInWithCredential(cred);
-      }
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/home');
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'account-exists-with-different-credential') {
-        _snack('Email already used by another sign-in method.');
-      } else {
-        _snack(e.message ?? 'Google sign-in failed');
-      }
-    } catch (_) {
-      _snack('Google sign-in failed');
-    } finally {
-      if (mounted) setState(() => isGoogleLoading = false);
-    }
-  }
-
-  // ------- Forgot password -------
   Future<void> _forgotPassword() async {
     String email = emailController.text.trim();
     if (email.isEmpty) {
@@ -130,7 +93,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final busy = isLoading || isSendingReset || isGoogleLoading;
+    final busy = isLoading || isSendingReset;
 
     return Scaffold(
       backgroundColor: Colors.grey[100],
@@ -197,14 +160,6 @@ class _LoginPageState extends State<LoginPage> {
                 child: isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text('Login'),
-              ),
-              const SizedBox(height: 12),
-
-              // Google pill button
-              GoogleSignInButton(
-                onPressed: busy ? null : signInWithGoogle,
-                loading: isGoogleLoading,
-                enabled: !busy,
               ),
 
               const SizedBox(height: 15),
