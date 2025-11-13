@@ -22,8 +22,8 @@ enum SpotState { free, available, reserved, occupied, unknown }
 class _MapPageState extends State<MapPage> {
   GoogleMapController? _mapController;
 
-  // Fallback center (Kuala Lumpur)
-  static const LatLng _klCenter = LatLng(3.1390, 101.6869);
+  // Fallback center (UTP)
+  static const LatLng _utpCenter = LatLng(4.386696908497744, 100.97192989870679);
 
   int _lastMarkerCount = -1;
   bool _didFitForThisBatch = false;
@@ -110,13 +110,15 @@ class _MapPageState extends State<MapPage> {
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
     _mapReady = true;
-    if (_pendingMarkers != null && _pendingMarkers!.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _fitToMarkers(_pendingMarkers!),
-      );
-      _pendingMarkers = null;
+    final toFit = _pendingMarkers;
+    _pendingMarkers = null;
+
+    if (toFit != null && toFit.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _fitToMarkers(toFit));
     }
+    
   }
+
 
   Future<void> _moveToPoint(LatLng point) async {
     if (_mapController == null) return;
@@ -294,7 +296,7 @@ class _MapPageState extends State<MapPage> {
               GoogleMap(
                 onMapCreated: _onMapCreated,
                 initialCameraPosition: const CameraPosition(
-                  target: _klCenter,
+                  target: _utpCenter,
                   zoom: 14,
                 ),
                 markers: markers,

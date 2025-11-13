@@ -1,48 +1,137 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../widgets/google_button.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
-
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final emailController = TextEditingController();
+  final passwordController = TextEditingController();
+  final _auth = FirebaseAuth.instance;
 
   bool isPasswordVisible = false;
   bool isLoading = false;
+  bool isSendingReset = false;
+  bool isGoogleLoading = false;
 
-  void loginUser() async {
+  void _snack(String m) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  Future<void> loginUser() async {
     setState(() => isLoading = true);
     try {
       await _auth.signInWithEmailAndPassword(
         email: emailController.text.trim(),
         password: passwordController.text.trim(),
       );
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, '/home');
     } on FirebaseAuthException catch (e) {
-      String message = '';
-      if (e.code == 'user-not-found') {
-        message = 'No user found for that email.';
-      } else if (e.code == 'wrong-password') {
-        message = 'Wrong password provided.';
-      } else {
-        message = e.message ?? 'Login failed';
-      }
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+      final msg = switch (e.code) {
+        'user-not-found' => 'No user found for that email.',
+        'wrong-password' => 'Wrong password provided.',
+        'invalid-email' => 'Invalid email address.',
+        'user-disabled' => 'This account has been disabled.',
+        _ => e.message ?? 'Login failed',
+      };
+      _snack(msg);
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  // ------- Google Sign-in -------
+  Future<void> signInWithGoogle() async {
+    try {
+      setState(() => isGoogleLoading = true);
+      if (kIsWeb) {
+        final provider = GoogleAuthProvider()..addScope('email');
+        await _auth.signInWithPopup(provider); // use signInWithRedirect if popups blocked
+      } else {
+        final acct = await GoogleSignIn().signIn();
+        if (acct == null) return; // user cancelled
+        final auth = await acct.authentication;
+        final cred = GoogleAuthProvider.credential(
+          accessToken: auth.accessToken,
+          idToken: auth.idToken,
+        );
+        await _auth.signInWithCredential(cred);
+      }
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/home');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'account-exists-with-different-credential') {
+        _snack('Email already used by another sign-in method.');
+      } else {
+        _snack(e.message ?? 'Google sign-in failed');
+      }
+    } catch (_) {
+      _snack('Google sign-in failed');
+    } finally {
+      if (mounted) setState(() => isGoogleLoading = false);
+    }
+  }
+
+  // ------- Forgot password -------
+  Future<void> _forgotPassword() async {
+    String email = emailController.text.trim();
+    if (email.isEmpty) {
+      final c = TextEditingController();
+      final entered = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Reset password'),
+          content: TextField(
+            controller: c,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Enter your registered email',
+              prefixIcon: Icon(Icons.email),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Send')),
+          ],
+        ),
+      );
+      if (entered == null || entered.isEmpty) return;
+      email = entered;
+    }
+    await _sendResetEmail(email);
+  }
+
+  Future<void> _sendResetEmail(String email) async {
+    setState(() => isSendingReset = true);
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      _snack('Password reset email sent to $email');
+    } on FirebaseAuthException catch (e) {
+      final msg = switch (e.code) {
+        'invalid-email' => 'Invalid email address.',
+        'user-not-found' => 'No user found for that email.',
+        'invalid-continue-uri' => 'Invalid continue URL (check Authorized domains).',
+        'unauthorized-continue-uri' => 'Continue URL not whitelisted.',
+        _ => e.message ?? 'Failed to send reset email',
+      };
+      _snack(msg);
+    } finally {
+      if (mounted) setState(() => isSendingReset = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final busy = isLoading || isSendingReset || isGoogleLoading;
+
     return Scaffold(
       backgroundColor: Colors.grey[100],
       body: Center(
@@ -59,20 +148,18 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 40),
 
-              // Email Field
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
                   labelText: 'Email',
                   prefixIcon: const Icon(Icons.email),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 keyboardType: TextInputType.emailAddress,
+                enabled: !busy,
               ),
               const SizedBox(height: 20),
 
-              // Password Field
               TextField(
                 controller: passwordController,
                 obscureText: !isPasswordVisible,
@@ -80,45 +167,54 @@ class _LoginPageState extends State<LoginPage> {
                   labelText: 'Password',
                   prefixIcon: const Icon(Icons.lock),
                   suffixIcon: IconButton(
-                    icon: Icon(isPasswordVisible
-                        ? Icons.visibility_off
-                        : Icons.visibility),
-                    onPressed: () =>
-                        setState(() => isPasswordVisible = !isPasswordVisible),
+                    icon: Icon(isPasswordVisible ? Icons.visibility_off : Icons.visibility),
+                    onPressed: busy ? null : () => setState(() => isPasswordVisible = !isPasswordVisible),
                   ),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                enabled: !busy,
+              ),
+
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: busy ? null : _forgotPassword,
+                  child: isSendingReset
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Text('Forgot password?'),
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 10),
 
-              // Login Button
               ElevatedButton(
                 onPressed: isLoading ? null : loginUser,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blueAccent,
                   foregroundColor: Colors.white,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
                     : const Text('Login'),
               ),
-              const SizedBox(height: 15),
+              const SizedBox(height: 12),
 
-              // Go to Sign Up
+              // Google pill button
+              GoogleSignInButton(
+                onPressed: busy ? null : signInWithGoogle,
+                loading: isGoogleLoading,
+                enabled: !busy,
+              ),
+
+              const SizedBox(height: 15),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text("Don’t have an account?"),
                   TextButton(
-                    onPressed: () => Navigator.pushNamed(context, '/signup'),
-                    child: const Text(
-                      'Sign Up',
-                      style: TextStyle(color: Colors.blueAccent),
-                    ),
+                    onPressed: busy ? null : () => Navigator.pushNamed(context, '/signup'),
+                    child: const Text('Sign Up', style: TextStyle(color: Colors.blueAccent)),
                   ),
                 ],
               ),
