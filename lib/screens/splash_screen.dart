@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
             // App title
             Text(
-              'Smart Outdoor Parking Finder',
+              'SmartCampus',
               style: TextStyle(
                 fontSize: 22,
                 color: Colors.white,

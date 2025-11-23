@@ -106,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
               const Icon(Icons.local_parking, size: 100, color: Colors.blueAccent),
               const SizedBox(height: 16),
               const Text(
-                'Smart Outdoor Parking Finder',
+                'SmartCampus',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 40),

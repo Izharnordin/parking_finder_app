@@ -18,15 +18,6 @@ class SettingsPage extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
 
-          // Notifications toggle
-          SwitchListTile(
-            title: const Text('Enable Notifications'),
-            subtitle: const Text('Receive parking updates and alerts'),
-            value: true, // keep this as enabled for now
-            onChanged: (bool value) {},
-            activeThumbColor: Colors.blueAccent,
-          ),
-
           // Navigate to Profile Page
           ListTile(
             leading: const Icon(Icons.person),
