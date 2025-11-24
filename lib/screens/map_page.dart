@@ -354,6 +354,7 @@ class _SpotSheet extends StatefulWidget {
 class _SpotSheetState extends State<_SpotSheet> {
   bool _isLoading = false;
   String? _activeReservationId;
+  bool isReserveEnabled = false;
 
   @override
   void initState() {
@@ -380,6 +381,14 @@ class _SpotSheetState extends State<_SpotSheet> {
   }
 
   Future<void> _reserveSpot() async {
+    if (!isReserveEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Reservation feature is disabled.')),
+      );
+      return;
+    }
+
+    
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -507,32 +516,19 @@ class _SpotSheetState extends State<_SpotSheet> {
               if (updatedAt != null) Text('Updated: ${_ago(updatedAt)}'),
               const SizedBox(height: 20),
 
-              if (_isLoading)
-                const Center(child: CircularProgressIndicator())
-              else if (_activeReservationId != null)
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.cancel),
-                  label: const Text('Cancel Reservation'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 48),
+              // Display availability message
+              if (isAvailable)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(
+                    'This spot is available',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green,
+                    ),
                   ),
-                  onPressed: _cancelReservation,
-                )
-              else if (isAvailable)
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.bookmark_add),
-                  label: const Text('Reserve Spot'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(double.infinity, 48),
-                  ),
-                  onPressed: _reserveSpot,
-                )
-              else
-                const Text('This spot is not available right now.'),
+                ),
             ],
           ),
         );

@@ -32,7 +32,7 @@ class ParkingFinderApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Smart Outdoor Parking Finder',
+      title: 'SmartCampus',
       theme: ThemeData.light(),
       initialRoute: '/',
       routes: {
